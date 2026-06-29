@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Body
 from pathlib import Path
+from typing import Any
 import json
 import re
 
@@ -37,29 +37,26 @@ def is_valid_license_plate(license_plate: str) -> bool:
     return bool(re.fullmatch(r"\d{7,8}", license_plate))
 
 
-async def parse_request_body(request: Request) -> dict:
+def normalize_request_body(payload: Any) -> dict:
     """
-    Parses the request body.
+    Normalizes the request body into a Python dictionary.
 
-    Some no-code platforms may send the JSON body as a real JSON object,
-    while others may send it as a stringified JSON object.
-    This function supports both formats.
+    The API supports multiple formats because some no-code tools
+    may send the body as a real JSON object, while others may send
+    it as a stringified JSON object.
     """
-    try:
-        body = await request.json()
-    except Exception:
-        return {}
+    if isinstance(payload, dict):
+        return payload
 
-    if isinstance(body, dict):
-        return body
-
-    if isinstance(body, str):
+    if isinstance(payload, str):
         try:
-            parsed_body = json.loads(body)
-            if isinstance(parsed_body, dict):
-                return parsed_body
+            parsed_payload = json.loads(payload)
+            if isinstance(parsed_payload, dict):
+                return parsed_payload
         except json.JSONDecodeError:
-            return {}
+            return {
+                "license_plate": payload
+            }
 
     return {}
 
@@ -80,8 +77,15 @@ def health_check():
 
 
 @app.post("/vehicle-info")
-async def get_vehicle_info(request: Request):
-    body = await parse_request_body(request)
+async def get_vehicle_info(
+    payload: Any = Body(
+        ...,
+        example={
+            "license_plate": "12345678"
+        }
+    )
+):
+    body = normalize_request_body(payload)
 
     license_plate = str(body.get("license_plate", "")).strip()
 
