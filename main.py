@@ -1,6 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from pathlib import Path
 import json
 import re
@@ -11,10 +10,6 @@ app = FastAPI(
     description="API for retrieving vehicle information by license plate",
     version="1.0.0"
 )
-
-
-class VehicleRequest(BaseModel):
-    license_plate: str
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -42,6 +37,33 @@ def is_valid_license_plate(license_plate: str) -> bool:
     return bool(re.fullmatch(r"\d{7,8}", license_plate))
 
 
+async def parse_request_body(request: Request) -> dict:
+    """
+    Parses the request body.
+
+    Some no-code platforms may send the JSON body as a real JSON object,
+    while others may send it as a stringified JSON object.
+    This function supports both formats.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return {}
+
+    if isinstance(body, dict):
+        return body
+
+    if isinstance(body, str):
+        try:
+            parsed_body = json.loads(body)
+            if isinstance(parsed_body, dict):
+                return parsed_body
+        except json.JSONDecodeError:
+            return {}
+
+    return {}
+
+
 @app.get("/")
 def root():
     return {
@@ -58,34 +80,30 @@ def health_check():
 
 
 @app.post("/vehicle-info")
-def get_vehicle_info(request: VehicleRequest):
-    license_plate = request.license_plate.strip()
+async def get_vehicle_info(request: Request):
+    body = await parse_request_body(request)
+
+    license_plate = str(body.get("license_plate", "")).strip()
 
     if not is_valid_license_plate(license_plate):
-        return JSONResponse(
-            status_code=400,
-            content={
-                "success": False,
-                "error": {
-                    "code": "INVALID_LICENSE_PLATE",
-                    "message": "License plate must contain only 7-8 digits"
-                }
+        return {
+            "success": False,
+            "error": {
+                "code": "INVALID_LICENSE_PLATE",
+                "message": "License plate must contain only 7-8 digits"
             }
-        )
+        }
 
     vehicle = VEHICLES_DB.get(license_plate)
 
     if vehicle is None:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "success": False,
-                "error": {
-                    "code": "VEHICLE_NOT_FOUND",
-                    "message": "Vehicle was not found"
-                }
+        return {
+            "success": False,
+            "error": {
+                "code": "VEHICLE_NOT_FOUND",
+                "message": "Vehicle was not found"
             }
-        )
+        }
 
     return {
         "success": True,
