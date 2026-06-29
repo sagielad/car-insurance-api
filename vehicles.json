@@ -1,0 +1,20 @@
+{
+  "12345678": {
+    "manufacturer": "Toyota",
+    "model": "Corolla",
+    "year": 2020,
+    "color": "White"
+  },
+  "87654321": {
+    "manufacturer": "Hyundai",
+    "model": "i10",
+    "year": 2019,
+    "color": "Silver"
+  },
+  "11112222": {
+    "manufacturer": "Mazda",
+    "model": "3",
+    "year": 2021,
+    "color": "Blue"
+  }
+}
