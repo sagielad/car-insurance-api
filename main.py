@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 import json
@@ -23,6 +23,8 @@ class VehicleRequest(BaseModel):
 def load_vehicles_db() -> dict:
     """
     Loads the mock vehicle database from a JSON file.
+    In a real production system, this could be replaced with
+    a real database or an external vehicle registry API.
     """
     with open(VEHICLES_DB_PATH, "r", encoding="utf-8") as file:
         return json.load(file)
@@ -58,43 +60,32 @@ def health_check():
 def get_vehicle_info(request: VehicleRequest):
     license_plate = request.license_plate.strip()
 
-    # Invalid format -> HTTP 200 (return, NOT raise), so Insait can read & branch
     if not is_valid_license_plate(license_plate):
-        return {
-            "success": False,
-            "data": {
-                "license_plate": license_plate,
-                "manufacturer": "",
-                "model": "",
-                "year": 0,
-                "color": ""
-            },
-            "error": {
-                "code": "INVALID_LICENSE_PLATE",
-                "message": "License plate must contain only 7-8 digits"
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "success": False,
+                "error": {
+                    "code": "INVALID_LICENSE_PLATE",
+                    "message": "License plate must contain only 7-8 digits"
+                }
             }
-        }
+        )
 
     vehicle = VEHICLES_DB.get(license_plate)
 
-    # Not found -> HTTP 200 (return, NOT raise)
     if vehicle is None:
-        return {
-            "success": False,
-            "data": {
-                "license_plate": license_plate,
-                "manufacturer": "",
-                "model": "",
-                "year": 0,
-                "color": ""
-            },
-            "error": {
-                "code": "VEHICLE_NOT_FOUND",
-                "message": "Vehicle was not found"
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "success": False,
+                "error": {
+                    "code": "VEHICLE_NOT_FOUND",
+                    "message": "Vehicle was not found"
+                }
             }
-        }
+        )
 
-    # Found -> HTTP 200
     return {
         "success": True,
         "data": {
@@ -103,9 +94,5 @@ def get_vehicle_info(request: VehicleRequest):
             "model": vehicle["model"],
             "year": vehicle["year"],
             "color": vehicle["color"]
-        },
-        "error": {
-            "code": "",
-            "message": ""
         }
     }
