@@ -95,4 +95,4 @@ def get_vehicle_info(request: VehicleRequest):
             "year": vehicle["year"],
             "color": vehicle["color"]
         }
-    }x
+    }
