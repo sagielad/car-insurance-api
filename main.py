@@ -8,7 +8,7 @@ import re
 app = FastAPI(
     title="Car Insurance Vehicle API",
     description="API for retrieving vehicle information by license plate",
-    version="1.1.0"
+    version="1.2.0"
 )
 
 
@@ -23,8 +23,8 @@ class VehicleRequest(BaseModel):
 def load_vehicles_db() -> dict:
     """
     Loads the mock vehicle database from a JSON file.
-    In a real production system, this could be replaced with
-    a real database or an external vehicle registry API.
+    In production, this could be replaced with a real database
+    or an external vehicle registry API.
     """
     with open(VEHICLES_DB_PATH, "r", encoding="utf-8") as file:
         return json.load(file)
@@ -41,45 +41,52 @@ def is_valid_license_plate(license_plate: str) -> bool:
     return bool(re.fullmatch(r"\d{7,8}", license_plate))
 
 
-def empty_vehicle_data(license_plate: str = "") -> dict:
-    """
-    Returns an empty vehicle data object.
-
-    This keeps the API response structure consistent for Insait,
-    even when the vehicle is not found or the license plate is invalid.
-    """
-    return {
-        "license_plate": license_plate,
-        "manufacturer": "",
-        "model": "",
-        "year": 0,
-        "color": ""
-    }
-
-
 def build_response(
     success: bool,
-    data: dict,
+    license_plate: str,
+    manufacturer: str = "",
+    model: str = "",
+    year: int = 0,
+    color: str = "",
     error_code: str = "",
     error_message: str = ""
 ) -> dict:
     """
-    Builds one consistent response structure for all cases.
+    Builds a response that is easy for Insait to extract.
 
-    Every response always contains:
-    - success
-    - data
-    - error
-
-    This helps Insait extract the same fields every time.
+    The response includes:
+    1. Flat top-level fields for simple Insait extraction.
+    2. Nested data/error objects for a clean API structure.
     """
+
+    data = {
+        "license_plate": license_plate,
+        "manufacturer": manufacturer,
+        "model": model,
+        "year": year,
+        "color": color
+    }
+
+    error = {
+        "code": error_code,
+        "message": error_message
+    }
+
     return {
         "success": success,
+
+        # Flat fields for Insait extraction
+        "vehicle_license_plate": license_plate,
+        "vehicle_manufacturer": manufacturer,
+        "vehicle_model": model,
+        "vehicle_year": year,
+        "vehicle_color": color,
+        "api_error_code": error_code,
+        "api_error_message": error_message,
+
+        # Nested fields for clean API structure
         "data": data,
-        "error": {
-            "code": error_code,
-            "message": error_message
-        }
+        "error": error
     }
 
 
@@ -105,7 +112,7 @@ def get_vehicle_info(request: VehicleRequest):
     if not is_valid_license_plate(license_plate):
         return build_response(
             success=False,
-            data=empty_vehicle_data(license_plate),
+            license_plate=license_plate,
             error_code="INVALID_LICENSE_PLATE",
             error_message="License plate must contain only 7-8 digits"
         )
@@ -115,18 +122,16 @@ def get_vehicle_info(request: VehicleRequest):
     if vehicle is None:
         return build_response(
             success=False,
-            data=empty_vehicle_data(license_plate),
+            license_plate=license_plate,
             error_code="VEHICLE_NOT_FOUND",
             error_message="Vehicle was not found"
         )
 
     return build_response(
         success=True,
-        data={
-            "license_plate": license_plate,
-            "manufacturer": vehicle.get("manufacturer", ""),
-            "model": vehicle.get("model", ""),
-            "year": vehicle.get("year", 0),
-            "color": vehicle.get("color", "")
-        }
+        license_plate=license_plate,
+        manufacturer=vehicle.get("manufacturer", ""),
+        model=vehicle.get("model", ""),
+        year=vehicle.get("year", 0),
+        color=vehicle.get("color", "")
     )
