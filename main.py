@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from pathlib import Path
 import json
@@ -102,6 +102,22 @@ def root():
 def health_check():
     return {
         "status": "ok"
+    }
+
+@app.post("/debug-request")
+async def debug_request(request: Request):
+    raw_body = await request.body()
+
+    try:
+        json_body = await request.json()
+    except Exception:
+        json_body = None
+
+    return {
+        "success": True,
+        "content_type": request.headers.get("content-type"),
+        "raw_body": raw_body.decode("utf-8"),
+        "json_body": json_body
     }
 
 
