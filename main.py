@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI
+from pydantic import BaseModel
 from pathlib import Path
-from typing import Any
 import json
 import re
 
@@ -14,6 +14,10 @@ app = FastAPI(
 
 BASE_DIR = Path(__file__).resolve().parent
 VEHICLES_DB_PATH = BASE_DIR / "vehicles.json"
+
+
+class VehicleRequest(BaseModel):
+    license_plate: str
 
 
 def load_vehicles_db() -> dict:
@@ -37,40 +41,11 @@ def is_valid_license_plate(license_plate: str) -> bool:
     return bool(re.fullmatch(r"\d{7,8}", license_plate))
 
 
-def normalize_request_body(payload: Any) -> dict:
-    """
-    Normalizes the request body into a Python dictionary.
-
-    This supports both:
-    1. A real JSON object:
-       {"license_plate": "12345678"}
-
-    2. A stringified JSON object, which some no-code tools may send:
-       "{\"license_plate\": \"12345678\"}"
-    """
-    if isinstance(payload, dict):
-        return payload
-
-    if isinstance(payload, str):
-        try:
-            parsed_payload = json.loads(payload)
-
-            if isinstance(parsed_payload, dict):
-                return parsed_payload
-
-        except json.JSONDecodeError:
-            return {
-                "license_plate": payload
-            }
-
-    return {}
-
-
 def empty_vehicle_data(license_plate: str = "") -> dict:
     """
     Returns an empty vehicle data object.
 
-    This keeps the API response structure consistent,
+    This keeps the API response structure consistent for Insait,
     even when the vehicle is not found or the license plate is invalid.
     """
     return {
@@ -89,15 +64,14 @@ def build_response(
     error_message: str = ""
 ) -> dict:
     """
-    Builds a consistent response structure for all cases.
+    Builds one consistent response structure for all cases.
 
     Every response always contains:
     - success
     - data
     - error
 
-    This is important for Insait, because the custom tool extracts
-    the same paths from every API response.
+    This helps Insait extract the same fields every time.
     """
     return {
         "success": success,
@@ -125,17 +99,8 @@ def health_check():
 
 
 @app.post("/vehicle-info")
-async def get_vehicle_info(
-    payload: Any = Body(
-        ...,
-        example={
-            "license_plate": "12345678"
-        }
-    )
-):
-    body = normalize_request_body(payload)
-
-    license_plate = str(body.get("license_plate", "")).strip()
+def get_vehicle_info(request: VehicleRequest):
+    license_plate = request.license_plate.strip()
 
     if not is_valid_license_plate(license_plate):
         return build_response(
