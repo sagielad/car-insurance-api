@@ -51,14 +51,33 @@ def normalize_request_body(payload: Any) -> dict:
     if isinstance(payload, str):
         try:
             parsed_payload = json.loads(payload)
+
             if isinstance(parsed_payload, dict):
                 return parsed_payload
+
         except json.JSONDecodeError:
             return {
                 "license_plate": payload
             }
 
     return {}
+
+
+def build_empty_vehicle_data(license_plate: str) -> dict:
+    """
+    Returns an empty vehicle data structure.
+
+    This keeps the API response schema consistent,
+    so external tools like Insait can always extract
+    the same fields from the response.
+    """
+    return {
+        "license_plate": license_plate,
+        "manufacturer": "",
+        "model": "",
+        "year": 0,
+        "color": ""
+    }
 
 
 @app.get("/")
@@ -89,9 +108,12 @@ async def get_vehicle_info(
 
     license_plate = str(body.get("license_plate", "")).strip()
 
+    empty_vehicle_data = build_empty_vehicle_data(license_plate)
+
     if not is_valid_license_plate(license_plate):
         return {
             "success": False,
+            "data": empty_vehicle_data,
             "error": {
                 "code": "INVALID_LICENSE_PLATE",
                 "message": "License plate must contain only 7-8 digits"
@@ -103,6 +125,7 @@ async def get_vehicle_info(
     if vehicle is None:
         return {
             "success": False,
+            "data": empty_vehicle_data,
             "error": {
                 "code": "VEHICLE_NOT_FOUND",
                 "message": "Vehicle was not found"
@@ -117,5 +140,9 @@ async def get_vehicle_info(
             "model": vehicle["model"],
             "year": vehicle["year"],
             "color": vehicle["color"]
+        },
+        "error": {
+            "code": "",
+            "message": ""
         }
     }
